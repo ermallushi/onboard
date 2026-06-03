@@ -1,0 +1,361 @@
+@{
+    ViewData["Title"] = "Usage Guide";
+}
+
+<h2 class="mb-1">&#128218; Onboarding Platform – Usage Guide</h2>
+<p class="text-muted mb-4">Step-by-step walkthroughs for the most common onboarding journeys, with sample API requests you can run directly.</p>
+
+<ul class="nav nav-tabs mb-4" id="guideTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-digital">Digital Journey</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-store">In-Store Journey</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cross">Cross-Channel</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-webhook">Webhooks</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-review">Manual Review</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sig">Signature</button></li>
+</ul>
+
+<div class="tab-content" id="guideTabsContent">
+
+    <!-- ── DIGITAL JOURNEY ─────────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="tab-digital">
+        <h4>Full Digital Onboarding Flow</h4>
+        <p>The happy-path takes a customer from case creation through KYC, biometrics, risk screening and e-signature.</p>
+
+        <div class="accordion" id="digitalAccordion">
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#d1">Step 1 – Create a case</button></h2>
+                <div id="d1" class="accordion-collapse collapse show" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <p>A case is the single orchestration record for the entire journey.</p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/cases \
+  -H "Content-Type: application/json" \
+  -d '{
+    "externalReference": "CRM-2024-00001",
+    "journeyType": "digital",
+    "currentChannel": "digital",
+    "customerReference": "CUST-NEW-001"
+  }'</code></pre>
+                        <p class="mt-2 text-muted">Copy the <strong>caseId</strong> from the response — you will use it in every subsequent step.</p>
+                        <span class="badge bg-secondary">Started</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#d2">Step 2 – Submit personal data</button></h2>
+                <div id="d2" class="accordion-collapse collapse" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/identity/personal-data \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caseId": "&lt;YOUR_CASE_ID&gt;",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "dateOfBirth": "1990-03-15",
+    "nationality": "GBR",
+    "email": "jane.doe@example.com",
+    "phone": "+44 7700 900222",
+    "address": "1 High Street, London, EC1A 1BB",
+    "consentFlags": { "dataProcessing": true, "marketing": false, "thirdPartySharing": false }
+  }'</code></pre>
+                        <span class="badge bg-info">IdentityCaptured</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#d3">Step 3 – Upload identity document</button></h2>
+                <div id="d3" class="accordion-collapse collapse" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/identity/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caseId": "&lt;YOUR_CASE_ID&gt;",
+    "documentType": "passport",
+    "issuingCountry": "GBR",
+    "documentNumber": "GB1234567",
+    "expiryDate": "2031-12-31",
+    "frontFileReference": "file://uploads/passport-front.jpg",
+    "backFileReference":  "file://uploads/passport-back.jpg"
+  }'</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#d4">Step 4 – Trigger document verification</button></h2>
+                <div id="d4" class="accordion-collapse collapse" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <p>This calls the KYC provider adapter and moves the case to <strong>DocumentVerificationPending</strong>. In production the provider replies asynchronously via the webhook.</p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/identity/&lt;CASE_ID&gt;/verify</code></pre>
+                        <span class="badge bg-warning text-dark">DocumentVerificationPending</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#d5">Step 5 – Simulate KYC callback (dev)</button></h2>
+                <div id="d5" class="accordion-collapse collapse" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <p>
+                            In production a webhook fires automatically. For local testing, call the webhook endpoint directly.
+                            The <code>X-Callback-Signature</code> header must be the HMAC-SHA256 hex of the JSON body using the
+                            shared secret <code>development-secret</code> (configurable in <code>appsettings.json</code>).
+                        </p>
+                        <pre class="bg-dark text-light p-3 rounded"><code># Compute HMAC-SHA256 signature (bash)
+PAYLOAD='{"eventId":"evt-001","caseId":"&lt;CASE_ID&gt;","success":true,"correlationId":"c-001","payloadReference":"kyc-evidence://..."}'
+SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "development-secret" | awk '{print $2}' | tr '[:lower:]' '[:upper:]')
+
+curl -X POST http://localhost:5088/api/webhooks/kyc \
+  -H "Content-Type: application/json" \
+  -H "X-Callback-Signature: $SIG" \
+  -d "$PAYLOAD"</code></pre>
+                        <span class="badge bg-primary">DocumentVerified</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#d6">Step 6 – Run risk screening</button></h2>
+                <div id="d6" class="accordion-collapse collapse" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <p>
+                            Runs sanctions, PEP, adverse-media, and fraud checks. Based on the configurable thresholds
+                            in <code>appsettings.json</code> (<code>ReviewThreshold: 40</code>, <code>RejectThreshold: 75</code>)
+                            the case will transition to <strong>ApprovedForSigning</strong>, <strong>RiskReview</strong>, or <strong>Rejected</strong>.
+                        </p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/risk/&lt;CASE_ID&gt;/run</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#d7">Step 7 – Create signature package</button></h2>
+                <div id="d7" class="accordion-collapse collapse" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <p>Case must be in <strong>ApprovedForSigning</strong>. This freezes the document version to be signed.</p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/signature/&lt;CASE_ID&gt;/package \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentReference": "doc://onboarding-terms-v3.pdf",
+    "signatureLevel": "advanced",
+    "signerAuthMethod": "otp"
+  }'</code></pre>
+                        <span class="badge bg-primary">ApprovedForSigning</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#d8">Step 8 – Send for signature &amp; simulate completion</button></h2>
+                <div id="d8" class="accordion-collapse collapse" data-bs-parent="#digitalAccordion">
+                    <div class="accordion-body">
+                        <pre class="bg-dark text-light p-3 rounded"><code># Trigger signature
+curl -X POST http://localhost:5088/api/signature/&lt;CASE_ID&gt;/send
+
+# Simulate provider callback
+PAYLOAD='{"eventId":"sig-evt-001","caseId":"&lt;CASE_ID&gt;","success":true,"correlationId":"sig-c-001","payloadReference":"sig-evidence://..."}'
+SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "development-secret" | awk '{print $2}' | tr '[:lower:]' '[:upper:]')
+
+curl -X POST http://localhost:5088/api/webhooks/signature \
+  -H "Content-Type: application/json" \
+  -H "X-Callback-Signature: $SIG" \
+  -d "$PAYLOAD"</code></pre>
+                        <span class="badge bg-success">Completed ✓</span>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /digitalAccordion -->
+    </div><!-- /tab-digital -->
+
+    <!-- ── IN-STORE JOURNEY ────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-store">
+        <h4>In-Store Assisted Onboarding</h4>
+        <p>Store staff authenticate, start or resume a case, capture documents and submit decisions.</p>
+
+        <h6 class="mt-3">1. Start a new assisted case</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/store/cases/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "externalReference": "STORE-BRANCH01-001",
+    "customerReference": "CUST-WALK-IN-007",
+    "staffId": "STAFF-JANE-01"
+  }'</code></pre>
+
+        <h6 class="mt-3">2. Search for an existing case</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl "http://localhost:5088/api/store/cases?customerReference=CUST-ALICE-001"</code></pre>
+
+        <h6 class="mt-3">3. Submit staff override decision</h6>
+        <p>After reviewing the case, staff can approve or reject.</p>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/store/cases/&lt;CASE_ID&gt;/staff-decision \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "approve", "performedBy": "STAFF-JANE-01" }'</code></pre>
+    </div>
+
+    <!-- ── CROSS-CHANNEL ───────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-cross">
+        <h4>Cross-Channel Continuation</h4>
+        <p>A customer who started online can continue in a branch (or vice versa). The platform records the full transition history on the central case.</p>
+
+        <h6 class="mt-3">Record a digital → store transition</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/cases/&lt;CASE_ID&gt;/channel-transition \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toChannel": "store",
+    "reason": "Customer visited branch to complete biometric capture",
+    "performedBy": "STAFF-BOB-02"
+  }'</code></pre>
+
+        <h6 class="mt-3">Resume from store back to digital</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/cases/&lt;CASE_ID&gt;/resume \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toChannel": "digital",
+    "reason": "Customer continuing journey on mobile app",
+    "performedBy": "system"
+  }'</code></pre>
+    </div>
+
+    <!-- ── WEBHOOKS ────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-webhook">
+        <h4>Webhook / Async Callbacks</h4>
+        <p>
+            Providers call back asynchronously when KYC or signature events complete.
+            All callbacks require an <code>X-Callback-Signature</code> HMAC-SHA256 header and are <strong>idempotent</strong>
+            — duplicate <code>eventId</code> values are silently ignored.
+        </p>
+
+        <h6 class="mt-3">Signature computation (Python)</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>import hmac, hashlib, json
+
+secret = b"development-secret"
+payload = json.dumps({
+    "eventId": "unique-event-id",
+    "caseId": "&lt;CASE_ID&gt;",
+    "success": True,
+    "correlationId": "corr-1",
+    "payloadReference": "evidence://ref"
+}, separators=(',', ':'))
+
+sig = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest().upper()
+print(sig)</code></pre>
+
+        <h6 class="mt-3">Configuration</h6>
+        <p>Change the shared secret in <code>appsettings.json</code>:</p>
+        <pre class="bg-dark text-light p-3 rounded"><code>{
+  "CallbackSecurity": {
+    "SharedSecret": "your-production-secret-here"
+  }
+}</code></pre>
+    </div>
+
+    <!-- ── MANUAL REVIEW ──────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-review">
+        <h4>Manual Review &amp; Compliance Override</h4>
+        <p>When risk screening routes a case to <strong>RiskReview</strong>, a compliance officer can investigate, add notes, and override the decision.</p>
+
+        <h6 class="mt-3">1. Assign to a compliance queue</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/review/&lt;CASE_ID&gt;/assign \
+  -H "Content-Type: application/json" \
+  -d '{ "queueName": "pep-escalation", "reason": "PEP match requires senior review" }'</code></pre>
+
+        <h6 class="mt-3">2. Add a reviewer note</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/review/&lt;CASE_ID&gt;/note \
+  -H "Content-Type: application/json" \
+  -d '{ "note": "PEP confirmed as false positive — different person with same name.", "actor": "compliance-officer-01" }'</code></pre>
+
+        <h6 class="mt-3">3. Submit override decision</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/review/&lt;CASE_ID&gt;/override \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "approve", "actor": "compliance-officer-01" }'</code></pre>
+
+        <h6 class="mt-3">4. Trigger manual risk approve to unblock the case</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/risk/&lt;CASE_ID&gt;/manual-decision \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "approve", "performedBy": "compliance-officer-01" }'</code></pre>
+        <span class="badge bg-primary">ApprovedForSigning</span>
+    </div>
+
+    <!-- ── SIGNATURE ──────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-sig">
+        <h4>Digital Signature Workflow</h4>
+        <p>The platform supports simple, advanced, and qualified e-signatures. The flow has three phases: prepare, sign, and collect evidence.</p>
+
+        <h6 class="mt-3">1. Create a signature package (case must be ApprovedForSigning)</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/signature/&lt;CASE_ID&gt;/package \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentReference": "doc://signed-terms-v2.pdf",
+    "signatureLevel": "advanced",
+    "signerAuthMethod": "otp"
+  }'</code></pre>
+
+        <h6 class="mt-3">2. Send for signature</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST http://localhost:5088/api/signature/&lt;CASE_ID&gt;/send</code></pre>
+        <span class="badge bg-warning text-dark">SignaturePending</span>
+
+        <h6 class="mt-3">3. Poll status</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl http://localhost:5088/api/signature/&lt;CASE_ID&gt;/status</code></pre>
+
+        <h6 class="mt-3">4. Retrieve evidence after completion</h6>
+        <pre class="bg-dark text-light p-3 rounded"><code>curl http://localhost:5088/api/signature/&lt;CASE_ID&gt;/evidence</code></pre>
+        <span class="badge bg-success">Completed ✓</span>
+    </div>
+
+</div><!-- /tab-content -->
+
+<hr class="mt-5"/>
+<h5>Case Status Lifecycle</h5>
+<p class="text-muted small">Every status transition generates an immutable audit event. Invalid transitions are rejected.</p>
+<div class="table-responsive">
+    <table class="table table-sm table-bordered small">
+        <thead class="table-light">
+            <tr><th>Status</th><th>Allowed Next States</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><span class="badge bg-secondary">Started</span></td><td>IdentityCaptured, Cancelled, Expired</td></tr>
+            <tr><td><span class="badge bg-info">IdentityCaptured</span></td><td>DocumentVerificationPending, Cancelled</td></tr>
+            <tr><td><span class="badge bg-warning text-dark">DocumentVerificationPending</span></td><td>DocumentVerified, DocumentRejected</td></tr>
+            <tr><td><span class="badge bg-primary">DocumentVerified</span></td><td>BiometricPending, RiskPending</td></tr>
+            <tr><td><span class="badge bg-danger">DocumentRejected</span></td><td>Rejected</td></tr>
+            <tr><td><span class="badge bg-warning text-dark">BiometricPending</span></td><td>BiometricVerified, BiometricFailed</td></tr>
+            <tr><td><span class="badge bg-primary">BiometricVerified</span></td><td>RiskPending</td></tr>
+            <tr><td><span class="badge bg-danger">BiometricFailed</span></td><td>Rejected</td></tr>
+            <tr><td><span class="badge bg-warning text-dark">RiskPending</span></td><td>RiskReview, RiskRejected, ApprovedForSigning</td></tr>
+            <tr><td><span class="badge bg-warning text-dark">RiskReview</span></td><td>ApprovedForSigning, RiskRejected</td></tr>
+            <tr><td><span class="badge bg-danger">RiskRejected</span></td><td>Rejected</td></tr>
+            <tr><td><span class="badge bg-primary">ApprovedForSigning</span></td><td>SignaturePending</td></tr>
+            <tr><td><span class="badge bg-warning text-dark">SignaturePending</span></td><td>Signed, Rejected</td></tr>
+            <tr><td><span class="badge bg-success">Signed</span></td><td>Completed</td></tr>
+            <tr><td><span class="badge bg-success">Completed</span></td><td>—</td></tr>
+            <tr><td><span class="badge bg-danger">Rejected</span></td><td>—</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<h5 class="mt-4">Configuration Reference</h5>
+<pre class="bg-dark text-light p-3 rounded"><code>// appsettings.json
+{
+  "DecisionRules": {
+    "ReviewThreshold": 40,   // fraud score >= 40 routes to RiskReview
+    "RejectThreshold": 75    // fraud score >= 75 auto-rejects
+  },
+  "CallbackSecurity": {
+    "SharedSecret": "development-secret"  // HMAC key for webhook signature validation
+  }
+}</code></pre>
+
+@section Scripts {
+    <script>
+        // Activate the correct tab when URL has a hash
+        document.addEventListener('DOMContentLoaded', function () {
+            const hash = window.location.hash;
+            if (hash) {
+                const trigger = document.querySelector(`[data-bs-target="${hash}"]`);
+                if (trigger) bootstrap.Tab.getOrCreateInstance(trigger).show();
+            }
+        });
+    </script>
+}
