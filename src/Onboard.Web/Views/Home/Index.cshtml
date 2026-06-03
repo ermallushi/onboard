@@ -1,8 +1,172 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model Onboard.Web.Models.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+    var statusBadge = new Dictionary<string, string>
+    {
+        ["Started"]                      = "secondary",
+        ["IdentityCaptured"]             = "info",
+        ["DocumentVerificationPending"]  = "warning",
+        ["DocumentVerified"]             = "primary",
+        ["DocumentRejected"]             = "danger",
+        ["BiometricPending"]             = "warning",
+        ["BiometricVerified"]            = "primary",
+        ["BiometricFailed"]              = "danger",
+        ["RiskPending"]                  = "warning",
+        ["RiskReview"]                   = "warning",
+        ["RiskRejected"]                 = "danger",
+        ["ApprovedForSigning"]           = "primary",
+        ["SignaturePending"]             = "warning",
+        ["Signed"]                       = "success",
+        ["Completed"]                    = "success",
+        ["Rejected"]                     = "danger",
+        ["Expired"]                      = "dark",
+        ["Cancelled"]                    = "dark"
+    };
+    string Badge(string s) => statusBadge.TryGetValue(s, out var b) ? b : "secondary";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<!-- Hero -->
+<div class="p-4 mb-4 bg-primary text-white rounded-3">
+    <div class="container-fluid py-2">
+        <h1 class="display-5 fw-bold">&#127968; Onboarding Platform</h1>
+        <p class="col-md-8 fs-5">
+            Modular digital &amp; in-store customer onboarding — KYC, biometrics, risk screening, e-signature, and full audit trail.
+        </p>
+        <a class="btn btn-light btn-lg me-2" href="/swagger" target="_blank">&#128196; API Explorer (Swagger)</a>
+        <a class="btn btn-outline-light btn-lg" asp-controller="Home" asp-action="Guide">&#128218; Usage Guide</a>
+    </div>
+</div>
+
+<!-- Stats row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center border-primary">
+            <div class="card-body">
+                <h2 class="card-title text-primary fw-bold">@Model.TotalCases</h2>
+                <p class="card-text text-muted">Total Cases</p>
+            </div>
+        </div>
+    </div>
+    @foreach (var kv in Model.StatusCounts)
+    {
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h4 class="card-title fw-bold">@kv.Value</h4>
+                    <p class="card-text">
+                        <span class="badge bg-@Badge(kv.Key)">@kv.Key</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Recent cases table -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Recent Cases</strong>
+        <a href="/api/cases" class="btn btn-sm btn-outline-secondary" target="_blank">View all (JSON)</a>
+    </div>
+    <div class="card-body p-0">
+        @if (!Model.RecentCases.Any())
+        {
+            <p class="p-3 text-muted">No cases yet. Use the API to create one.</p>
+        }
+        else
+        {
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Case ID</th>
+                        <th>External Ref</th>
+                        <th>Journey</th>
+                        <th>Channel</th>
+                        <th>Customer Ref</th>
+                        <th>Status</th>
+                        <th>Updated</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in Model.RecentCases)
+                    {
+                        <tr>
+                            <td><code>@c.CaseId[..8]…</code></td>
+                            <td>@c.ExternalReference</td>
+                            <td>@c.JourneyType</td>
+                            <td>@c.CurrentChannel</td>
+                            <td>@c.CustomerReference</td>
+                            <td><span class="badge bg-@Badge(c.Status.ToString())">@c.Status</span></td>
+                            <td class="text-muted small">@c.UpdatedAt.ToString("HH:mm:ss")</td>
+                            <td>
+                                <a href="/api/cases/@c.CaseId" class="btn btn-sm btn-outline-primary" target="_blank">JSON</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<!-- API module cards -->
+<h5 class="mb-3">API Modules</h5>
+<div class="row g-3 mb-4">
+    @{
+        var modules = new[]
+        {
+            ("/swagger#/Cases", "&#128194; Cases", "Create, search, resume, cancel cases and manage cross-channel transitions."),
+            ("/swagger#/Identity", "&#128100; Identity", "Submit personal data, upload documents, trigger KYC verification."),
+            ("/swagger#/Biometric", "&#128065;&#65039; Biometrics", "Upload selfie, run liveness + face-match checks."),
+            ("/swagger#/Risk", "&#9888;&#65039; Risk", "Sanctions, PEP, adverse media, fraud scoring and manual overrides."),
+            ("/swagger#/Review", "&#128203; Review", "Assign queues, add notes, override compliance decisions."),
+            ("/swagger#/Signature", "&#9999;&#65039; Signature", "Create document packages, send for signing, retrieve evidence."),
+            ("/swagger#/Store", "&#127978; Store", "In-store assisted cases, staff decisions and case continuation."),
+            ("/swagger#/Webhooks", "&#128279; Webhooks", "Async KYC and signature provider callbacks with idempotency."),
+            ("/swagger#/Reporting", "&#128202; Reporting", "Operational metrics, audit export, regulator export."),
+        };
+    }
+    @foreach (var (url, title, desc) in modules)
+    {
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title">@Html.Raw(title)</h6>
+                    <p class="card-text small text-muted">@desc</p>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="@url" target="_blank" class="btn btn-sm btn-outline-primary">Open in Swagger</a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Quick links row -->
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card border-0 bg-light">
+            <div class="card-body">
+                <h6>&#128200; Operational Metrics</h6>
+                <a href="/api/reporting/operational-metrics" class="btn btn-sm btn-outline-secondary" target="_blank">GET /api/reporting/operational-metrics</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 bg-light">
+            <div class="card-body">
+                <h6>&#128196; Audit Export</h6>
+                <a href="/api/reporting/audit-export" class="btn btn-sm btn-outline-secondary" target="_blank">GET /api/reporting/audit-export</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 bg-light">
+            <div class="card-body">
+                <h6>&#9989; Integration Health</h6>
+                <a href="/api/integrations/health" class="btn btn-sm btn-outline-secondary" target="_blank">GET /api/integrations/health</a>
+            </div>
+        </div>
+    </div>
 </div>
